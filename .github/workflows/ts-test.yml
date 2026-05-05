@@ -50,8 +50,16 @@ jobs:
       - name: Type check
         run: bunx tsc --noEmit
 
+      # Operator setup -- consumer package.json must define
+      # ===================================================
+      #   "scripts": {
+      #     "test:coverage": "vitest run --coverage"
+      #   }
+      # This workflow invokes `bun run test:coverage` -- Bun's native test runner
+      # does NOT load vitest config (no jsdom env), causing ReferenceError on
+      # DOM-dependent tests. Vitest is invoked via the npm script.
       - name: Unit tests (vitest)
-        run: bun test --coverage
+        run: bun run test:coverage
 
       - name: Build Storybook
         if: inputs.run-storybook == true
