@@ -1,0 +1,43 @@
+name: Reusable - Rust Test (nextest + clippy + cargo-deny)
+
+on:
+  workflow_call:
+    inputs:
+      rust-version:
+        required: false
+        type: string
+        default: "1.95.0"
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.rust-version }}
+          components: clippy, rustfmt
+
+      - uses: mozilla-actions/sccache-action@v0.0.6
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-nextest@0.9, cargo-deny@0.17
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --all-features -- -D warnings
+
+      - name: Test (nextest)
+        run: cargo nextest run --all-features --no-fail-fast
+        env:
+          SCCACHE_GHA_ENABLED: "true"
+          RUSTC_WRAPPER: "sccache"
+
+      - name: Doc test
+        run: cargo test --doc --all-features
+
+      - name: Supply chain (cargo-deny)
+        run: cargo deny check

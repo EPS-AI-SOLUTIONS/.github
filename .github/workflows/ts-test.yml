@@ -1,0 +1,52 @@
+name: Reusable - TypeScript Test (biome + vitest + storybook)
+
+on:
+  workflow_call:
+    inputs:
+      bun-version:
+        required: false
+        type: string
+        default: "1.3.12"
+      run-storybook:
+        required: false
+        type: boolean
+        default: false
+      run-chromatic:
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # Required by Chromatic for git history
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ inputs.bun-version }}
+
+      - name: Install deps (frozen)
+        run: bun install --frozen-lockfile
+
+      - name: Biome check
+        run: bunx biome check --reporter github
+
+      - name: Type check
+        run: bunx tsc --noEmit
+
+      - name: Unit tests (vitest)
+        run: bun test --coverage
+
+      - name: Build Storybook
+        if: inputs.run-storybook == true
+        run: bun run build-storybook
+
+      - name: Chromatic visual regression
+        if: inputs.run-chromatic == true
+        uses: chromaui/action@v11
+        with:
+          projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+          exitZeroOnChanges: true

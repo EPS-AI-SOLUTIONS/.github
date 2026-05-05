@@ -1,0 +1,46 @@
+name: Reusable - Rust Publish to Kellnr
+
+on:
+  workflow_call:
+    inputs:
+      crate-name:
+        required: true
+        type: string
+      rust-version:
+        required: false
+        type: string
+        default: "1.95.0"
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write   # Reserved for future Kellnr OIDC support
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: ${{ inputs.rust-version }}
+
+      - name: Fetch Kellnr publish token from Vault
+        id: vault
+        run: |
+          TOKEN=$(curl -fsS -H "Authorization: Bearer ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}" \
+            "https://jsp-fusion.fly.dev/api/v1/vault/get?key=kellnr/publish_tokens/${{ inputs.crate-name }}&namespace=eps-ai-solutions" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Configure Cargo for Kellnr
+        run: |
+          mkdir -p ~/.cargo
+          cat >> ~/.cargo/config.toml <<EOF
+          [registries.kellnr]
+          index = "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
+          token = "${{ steps.vault.outputs.token }}"
+          EOF
+
+      - name: cargo publish to Kellnr
+        run: cargo publish --registry kellnr --no-verify
