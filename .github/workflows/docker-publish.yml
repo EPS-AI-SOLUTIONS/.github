@@ -14,6 +14,11 @@
 #
 # Apps without private deps need no caller-side changes - the secret defaults
 # to empty.
+#
+# Accepted tag formats (validated by step "Validate semver tag"):
+#   semver:   v1.0.0, v1.2.3, v0.1.0-rc1, v2.0.0-alpha.5
+#   PEP 440:  v0.0.1a1, v1.0.0b2, v0.0.1rc1, v1.0.0.dev0
+# Rejected:   v1.0 (missing patch), v1.0.0.0 (4 segments), release-2026
 
 name: Reusable - Docker Publish to ghcr.io
 
@@ -52,8 +57,11 @@ jobs:
       - name: Validate semver tag
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          echo "${{ github.ref_name }}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$' \
-            || (echo "::error::Tag must match v<major>.<minor>.<patch> semver" && exit 1)
+          # Accepts both semver pre-release (v0.1.0-rc1) and PEP 440 (v0.0.1a1, v1.0.0.dev0).
+          # Suffix (if present) starts with optional dot/dash + a letter, so v1.0.0.0
+          # (pure 4-segment numeric) is rejected. See operator notes at top of file.
+          echo "${{ github.ref_name }}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+([.-]?[a-zA-Z][a-zA-Z0-9.-]*)?$' \
+            || (echo "::error::Tag must match semver (v<major>.<minor>.<patch>[-pre]) or PEP 440 (v<M>.<m>.<p>{a|b|rc|.dev}<N>)" && exit 1)
 
       # TODO(B1237-T8): replace QEMU emulation with a build matrix using native
       # ubuntu-24.04-arm runners (5-10x faster than QEMU). The restructure
