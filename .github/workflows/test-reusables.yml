@@ -1,0 +1,127 @@
+# Test reusable workflows (weekly integration smoke)
+# ===================================================
+# Purpose: catch regressions in the 5 org-wide reusable workflows
+# (rust-test, rust-publish, npm-publish, docker-publish, ts-test) BEFORE
+# they hit real consumer repos. Refs: B1237-FU T13 / I7.
+#
+# Strategy:
+#   - rust-test-smoke + ts-test-smoke + docker-publish-smoke run live every
+#     Monday 04:00 UTC and on workflow_dispatch.
+#   - rust-publish-smoke + npm-publish-smoke are gated `if: false` because
+#     they would push real artefacts to Kellnr / GitHub Packages. Their
+#     regression coverage lives in template-validation runs inside the
+#     `rust-crate-template`, `rust-app-template`, `ts-package-template`,
+#     and `ts-app-template` repos (each template is exercised on every
+#     template-repo push).
+#
+# Known limitation (TODO B1237-FU):
+#   The reusable workflows currently checkout the caller repo at root and
+#   run cargo/bun commands from there - they do NOT yet accept a
+#   `crate-path` / `package-path` input pointing at a sub-directory.
+#   That means calling them from THIS repo today does not exercise the
+#   tests/fixtures/<name>/ trees we ship; instead the reusables operate
+#   on the .github repo root. Smokes still catch reusable-side regressions
+#   (action SHA pin drift, env contract changes, secret-passing bugs)
+#   because the workflow YAML itself is parsed and the steps run.
+#
+#   When the path input is added, switch each `with:` block below to
+#   pass crate-path / package-path = tests/fixtures/<name> and the
+#   smokes become fully path-scoped.
+
+name: Test reusable workflows (weekly)
+
+on:
+  schedule:
+    # Mon 04:00 UTC - aligned with the org "off-hours" window so smoke
+    # never collides with normal CI traffic on consumer repos.
+    - cron: "0 4 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: test-reusables-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------------------------------------------------------------------
+  # rust-test smoke - runs on every schedule tick + manual dispatch.
+  # When run from this `.github` repo, the reusable currently has no
+  # Cargo.toml at root to operate on; the call validates the workflow
+  # YAML parses + dispatches without contract drift. Live cargo work
+  # arrives once `crate-path` input lands (see file header TODO).
+  # ---------------------------------------------------------------------
+  rust-test-smoke:
+    uses: ./.github/workflows/rust-test.yml
+    secrets:
+      JSP_VAULT_DELEGATE_TOKEN: ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}
+
+  # ---------------------------------------------------------------------
+  # ts-test smoke - same caveat as rust-test-smoke. Chromatic gated off
+  # because we have no project token at the org-config level.
+  # ---------------------------------------------------------------------
+  ts-test-smoke:
+    uses: ./.github/workflows/ts-test.yml
+    with:
+      run-storybook: false
+      run-chromatic: false
+
+  # ---------------------------------------------------------------------
+  # docker-publish smoke - real push to ghcr.io with a smoke-only image
+  # name so it doesn't collide with consumer images. Skipped on dispatch
+  # without a tag to avoid clobbering the `:sha-XXXXXXX` cache.
+  # ---------------------------------------------------------------------
+  docker-publish-smoke:
+    if: false  # TODO B1237-FU: enable once we have a smoke Dockerfile + can pin the cleanup retention. Today this would push test-reusable-smoke:sha-* tags into ghcr.io with no GC.
+    uses: ./.github/workflows/docker-publish.yml
+    with:
+      image-name: test-reusable-smoke
+      build-args: ""
+    secrets:
+      KELLNR_TOKEN: ${{ secrets.KELLNR_TOKEN }}
+
+  # ---------------------------------------------------------------------
+  # npm-publish smoke - gated off; covered by template-validation runs
+  # in `ts-package-template` (every template push fully exercises npm-
+  # publish.yml against a real fake package on a -smoke version branch).
+  # ---------------------------------------------------------------------
+  npm-publish-smoke:
+    if: false
+    uses: ./.github/workflows/npm-publish.yml
+    with:
+      package-name: ts-package-fake
+      access: restricted
+      provenance: false
+
+  # ---------------------------------------------------------------------
+  # rust-publish smoke - gated off; covered by template-validation runs
+  # in `rust-crate-template`. Pushing to Kellnr from a smoke test would
+  # clobber the registry with throwaway versions.
+  # ---------------------------------------------------------------------
+  rust-publish-smoke:
+    if: false
+    uses: ./.github/workflows/rust-publish.yml
+    with:
+      crate-name: rust-fake-consumer
+    secrets:
+      JSP_VAULT_DELEGATE_TOKEN: ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}
+
+  # ---------------------------------------------------------------------
+  # YAML / actionlint sanity check on all 5 reusables. Catches schema
+  # drift (missing `on:`, undeclared inputs, bad SHA syntax) BEFORE the
+  # weekly smoke runs the live calls above.
+  # ---------------------------------------------------------------------
+  actionlint:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
+
+      - name: Run actionlint over all .github/workflows/*.yml
+        run: |
+          set -euo pipefail
+          bash <(curl -fsSL --max-time 30 https://raw.githubusercontent.com/rhysd/actionlint/v1.7.7/scripts/download-actionlint.bash)
+          ./actionlint -color
