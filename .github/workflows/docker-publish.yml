@@ -1,3 +1,20 @@
+# Operator setup notes
+# ====================
+# This reusable workflow accepts a `build-args` input and a `KELLNR_TOKEN`
+# secret. Apps depending on private crates from kellnr-jaskier.fly.dev
+# must:
+#   1. In their caller workflow, declare:
+#      jobs.publish.with.build-args: |
+#        SOME_OTHER_ARG=value
+#      jobs.publish.secrets:
+#        KELLNR_TOKEN: ${{ secrets.KELLNR_TOKEN }}
+#   2. In their Dockerfile, ARG KELLNR_TOKEN at the top of the build stage
+#      and pass to cargo via .cargo/config.toml or env
+#      CARGO_REGISTRIES_KELLNR_JASKIER_TOKEN
+#
+# Apps without private deps need no caller-side changes - the secret defaults
+# to empty.
+
 name: Reusable - Docker Publish to ghcr.io
 
 on:
@@ -10,6 +27,15 @@ on:
         required: false
         type: string
         default: "linux/amd64,linux/arm64"
+      build-args:
+        description: 'Multi-line build-args (KEY=VALUE per line) - passed to docker buildx build --build-arg'
+        required: false
+        type: string
+        default: ''
+    secrets:
+      KELLNR_TOKEN:
+        description: 'Kellnr publish/read token for cargo fetch from private registry'
+        required: false
 
 jobs:
   publish:
@@ -60,6 +86,13 @@ jobs:
           platforms: ${{ inputs.platforms }}
           push: true
           tags: ${{ steps.tags.outputs.tags }}
+          # build-args: caller-supplied lines first, then KELLNR_TOKEN appended.
+          # When the secret isn't set, KELLNR_TOKEN= (empty) is passed - harmless
+          # for consumers without private deps. Consumers WITH private deps must
+          # declare the secret in their caller workflow's `secrets:` block.
+          build-args: |
+            ${{ inputs.build-args }}
+            KELLNR_TOKEN=${{ secrets.KELLNR_TOKEN }}
           provenance: true
           sbom: true
           cache-from: type=gha
