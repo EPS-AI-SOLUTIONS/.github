@@ -14,33 +14,36 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
-      id-token: write   # Reserved for future Kellnr OIDC support
+      # id-token: write  removed (B1237-T6 review C3): re-enable when Kellnr OIDC RFC 3403 lands
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@29eef336d9b2848a0b548edc03f92a220660cdb8  # stable
         with:
           toolchain: ${{ inputs.rust-version }}
 
       - name: Fetch Kellnr publish token from Vault
         id: vault
         run: |
-          TOKEN=$(curl -fsS -H "Authorization: Bearer ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}" \
-            "https://jsp-fusion.fly.dev/api/v1/vault/get?key=kellnr/publish_tokens/${{ inputs.crate-name }}&namespace=eps-ai-solutions" \
-            | jq -r .value)
+          set -euo pipefail
+          RESPONSE=$(curl -fsS --max-time 30 \
+            -H "Authorization: Bearer ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}" \
+            "https://jsp-fusion.fly.dev/api/v1/vault/get?key=kellnr/publish_tokens/${{ inputs.crate-name }}&namespace=eps-ai-solutions") \
+            || { echo "::error::Vault fetch failed for kellnr/publish_tokens/${{ inputs.crate-name }}"; exit 1; }
+          TOKEN=$(echo "$RESPONSE" | jq -er .value) \
+            || { echo "::error::Vault response missing .value field for ${{ inputs.crate-name }}"; exit 1; }
+          if [[ "$TOKEN" == "null" || -z "$TOKEN" ]]; then
+            echo "::error::Vault returned null/empty token for ${{ inputs.crate-name }}"
+            exit 1
+          fi
           echo "::add-mask::$TOKEN"
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
-      - name: Configure Cargo for Kellnr
-        run: |
-          mkdir -p ~/.cargo
-          cat >> ~/.cargo/config.toml <<EOF
-          [registries.kellnr]
-          index = "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
-          token = "${{ steps.vault.outputs.token }}"
-          EOF
-
       - name: cargo publish to Kellnr
+        env:
+          CARGO_REGISTRIES_KELLNR_INDEX: "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
+          CARGO_REGISTRIES_KELLNR_TOKEN: ${{ steps.vault.outputs.token }}
         run: cargo publish --registry kellnr --no-verify
