@@ -21,6 +21,11 @@ on:
         required: false
         type: boolean
         default: false
+      package-path:
+        description: 'Subdir of caller repo containing package.json (default: . — root)'
+        type: string
+        required: false
+        default: '.'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -32,6 +37,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
         with:
@@ -81,3 +89,4 @@ jobs:
         with:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           exitZeroOnChanges: true
+          workingDir: ${{ inputs.package-path }}

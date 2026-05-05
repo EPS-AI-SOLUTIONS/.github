@@ -27,6 +27,11 @@ on:
         required: false
         type: string
         default: "1.95.0"
+      crate-path:
+        description: 'Subdir of caller repo containing Cargo.toml (default: . — root)'
+        type: string
+        required: false
+        default: '.'
     secrets:
       JSP_VAULT_DELEGATE_TOKEN:
         description: 'Bearer token for jsp-fusion vault delegate API (kellnr/publish_tokens/<crate>)'
@@ -64,6 +69,7 @@ jobs:
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: cargo publish to Kellnr
+        working-directory: ${{ inputs.crate-path }}
         env:
           CARGO_REGISTRIES_KELLNR_INDEX: "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
           CARGO_REGISTRIES_KELLNR_TOKEN: ${{ steps.vault.outputs.token }}

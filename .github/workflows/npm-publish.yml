@@ -44,6 +44,11 @@ on:
         required: false
         type: boolean
         default: false
+      package-path:
+        description: 'Subdir of caller repo containing package.json (default: . — root)'
+        type: string
+        required: false
+        default: '.'
 
 jobs:
   publish:
@@ -53,6 +58,9 @@ jobs:
       contents: read
       packages: write
       id-token: write   # MANDATORY for OIDC trusted publishing (npm GA 2025-07-31)
+    defaults:
+      run:
+        working-directory: ${{ inputs.package-path }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 

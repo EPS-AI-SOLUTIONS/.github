@@ -12,6 +12,11 @@ on:
         type: string
         required: false
         default: '--all-features'
+      crate-path:
+        description: 'Subdir of caller repo containing Cargo.toml (default: . — root)'
+        type: string
+        required: false
+        default: '.'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -23,6 +28,9 @@ jobs:
     timeout-minutes: 20
     permissions:
       contents: read
+    defaults:
+      run:
+        working-directory: ${{ inputs.crate-path }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 

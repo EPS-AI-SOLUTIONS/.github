@@ -14,19 +14,12 @@
 #     and `ts-app-template` repos (each template is exercised on every
 #     template-repo push).
 #
-# Known limitation (TODO B1237-FU):
-#   The reusable workflows currently checkout the caller repo at root and
-#   run cargo/bun commands from there - they do NOT yet accept a
-#   `crate-path` / `package-path` input pointing at a sub-directory.
-#   That means calling them from THIS repo today does not exercise the
-#   tests/fixtures/<name>/ trees we ship; instead the reusables operate
-#   on the .github repo root. Smokes still catch reusable-side regressions
-#   (action SHA pin drift, env contract changes, secret-passing bugs)
-#   because the workflow YAML itself is parsed and the steps run.
-#
-#   When the path input is added, switch each `with:` block below to
-#   pass crate-path / package-path = tests/fixtures/<name> and the
-#   smokes become fully path-scoped.
+# Path-scoped fixtures (B1237-FU J4):
+#   The reusables now accept `crate-path` / `package-path` / `context`
+#   inputs (default '.'). Smokes below pass `tests/fixtures/<name>` so
+#   the live cargo/bun runs exercise real fixture trees instead of the
+#   .github repo root. This catches contract drift (input wiring, secret
+#   passing, working-directory propagation) end-to-end.
 
 name: Test reusable workflows (weekly)
 
@@ -47,23 +40,24 @@ concurrency:
 jobs:
   # ---------------------------------------------------------------------
   # rust-test smoke - runs on every schedule tick + manual dispatch.
-  # When run from this `.github` repo, the reusable currently has no
-  # Cargo.toml at root to operate on; the call validates the workflow
-  # YAML parses + dispatches without contract drift. Live cargo work
-  # arrives once `crate-path` input lands (see file header TODO).
+  # Targets tests/fixtures/rust-fake-consumer/ via `crate-path` (B1237-FU
+  # J4). Live cargo nextest + clippy + cargo-deny run against the fixture.
   # ---------------------------------------------------------------------
   rust-test-smoke:
     uses: ./.github/workflows/rust-test.yml
+    with:
+      crate-path: tests/fixtures/rust-fake-consumer
     secrets:
       JSP_VAULT_DELEGATE_TOKEN: ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}
 
   # ---------------------------------------------------------------------
-  # ts-test smoke - same caveat as rust-test-smoke. Chromatic gated off
-  # because we have no project token at the org-config level.
+  # ts-test smoke - targets tests/fixtures/ts-fake-consumer/ via
+  # `package-path`. Chromatic gated off (no org-level project token).
   # ---------------------------------------------------------------------
   ts-test-smoke:
     uses: ./.github/workflows/ts-test.yml
     with:
+      package-path: tests/fixtures/ts-fake-consumer
       run-storybook: false
       run-chromatic: false
 
@@ -91,6 +85,7 @@ jobs:
     uses: ./.github/workflows/npm-publish.yml
     with:
       package-name: ts-package-fake
+      package-path: tests/fixtures/ts-package-fake
       access: restricted
       provenance: false
 
@@ -104,6 +99,7 @@ jobs:
     uses: ./.github/workflows/rust-publish.yml
     with:
       crate-name: rust-fake-consumer
+      crate-path: tests/fixtures/rust-fake-consumer
     secrets:
       JSP_VAULT_DELEGATE_TOKEN: ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}
 
