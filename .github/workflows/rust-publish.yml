@@ -1,3 +1,20 @@
+# Operator setup notes
+# ====================
+# This reusable workflow fetches a per-crate Kellnr publish token from the
+# JSP Vault delegate API. Apps must:
+#   1. In their caller workflow, declare:
+#      jobs.publish.secrets:
+#        JSP_VAULT_DELEGATE_TOKEN: ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}
+#      OR use `secrets: inherit` (less explicit, broader scope).
+#   2. Have a vault entry at kellnr/publish_tokens/<crate-name> in the
+#      eps-ai-solutions namespace.
+#
+# Note (B1237-G6 audit, F7-analogous fix): reusable workflows do NOT auto-
+# inherit caller secrets unless explicitly declared in workflow_call.secrets
+# (or caller uses `secrets: inherit`). Without this declaration the
+# `secrets.JSP_VAULT_DELEGATE_TOKEN` reference below silently expanded to
+# empty, causing Vault 401 / cargo publish failures with no clear root cause.
+
 name: Reusable - Rust Publish to Kellnr
 
 on:
@@ -10,6 +27,10 @@ on:
         required: false
         type: string
         default: "1.95.0"
+    secrets:
+      JSP_VAULT_DELEGATE_TOKEN:
+        description: 'Bearer token for jsp-fusion vault delegate API (kellnr/publish_tokens/<crate>)'
+        required: true
 
 jobs:
   publish:
