@@ -14,6 +14,14 @@
 #   - Removed `npm install -g npm@latest` self-upgrade step that was
 #     crashing on Node 22.22.2 toolcache with MODULE_NOT_FOUND
 #     'promise-retry'. The earlier upgrade was based on outdated docs.
+#
+# Operator setup -- npm provenance vs restricted scope (B1237-T18 G3)
+# ===================================================================
+# npm CLI rejects --provenance with --access restricted for private/new
+# packages (EUSAGE: "Can't generate provenance for new or private package").
+# Default behaviour: provenance OFF, access restricted (private package on GHP).
+# To opt-in for public + provenance: caller must set with.provenance: true
+# AND with.access: public. The workflow validates this combo.
 name: Reusable - NPM Publish to GHP (OIDC)
 
 on:
@@ -26,6 +34,16 @@ on:
         required: false
         type: string
         default: "22"
+      access:
+        description: "npm publish --access value (public | restricted)"
+        required: false
+        type: string
+        default: "restricted"
+      provenance:
+        description: "Generate provenance attestation (requires access: public per npm policy; default false for restricted scope)"
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   publish:
@@ -55,4 +73,13 @@ jobs:
         run: bun run build
 
       - name: Publish to GitHub Packages via OIDC
-        run: npm publish --access restricted --provenance
+        run: |
+          if [ "${{ inputs.provenance }}" = "true" ]; then
+            if [ "${{ inputs.access }}" != "public" ]; then
+              echo "::error::provenance: true requires access: public per npm policy (EUSAGE for new/private packages)"
+              exit 1
+            fi
+            npm publish --access "${{ inputs.access }}" --provenance
+          else
+            npm publish --access "${{ inputs.access }}"
+          fi
