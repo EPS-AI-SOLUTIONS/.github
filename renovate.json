@@ -8,8 +8,16 @@
     "schedule:weekly"
   ],
   "labels": ["dependencies"],
+  "timezone": "Europe/Warsaw",
+  "rangeStrategy": "bump",
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
+  "_prHourlyLimit_intent": "per-repo limit, not org-aggregate",
+  "lockFileMaintenance": {
+    "enabled": true,
+    "schedule": ["before 6am on monday"],
+    "automerge": true
+  },
   "vulnerabilityAlerts": {
     "labels": ["security", "vulnerability"],
     "automerge": false

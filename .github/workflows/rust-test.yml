@@ -7,6 +7,15 @@ on:
         required: false
         type: string
         default: "1.95.0"
+      features:
+        description: 'Cargo features flag (default: --all-features)'
+        type: string
+        required: false
+        default: '--all-features'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -31,7 +40,7 @@ jobs:
         run: cargo clippy --all-targets --all-features -- -D warnings
 
       - name: Test (nextest)
-        run: cargo nextest run --all-features --no-fail-fast
+        run: cargo nextest run ${{ inputs.features }} --no-fail-fast
         # env block removed (B1237-T9 review C6): sccache GHA backend disabled per B1232-N7
 
       - name: Doc test

@@ -23,6 +23,18 @@ jobs:
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5  # v4
 
+      - name: Validate semver tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          echo "${{ github.ref_name }}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$' \
+            || (echo "::error::Tag must match v<major>.<minor>.<patch> semver" && exit 1)
+
+      # TODO(B1237-T8): replace QEMU emulation with a build matrix using native
+      # ubuntu-24.04-arm runners (5-10x faster than QEMU). The restructure
+      # requires splitting build per-arch + merging manifests with
+      # docker/build-push-action's native manifest support; deferred until
+      # we're ready for the workflow refactor.
+      # See: https://github.blog/changelog/2025-01-16-linux-arm64-hosted-runners-now-available-for-free-in-public-repositories/
       - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130  # v3
       - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f  # v3
 

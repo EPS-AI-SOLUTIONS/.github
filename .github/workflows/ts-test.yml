@@ -2,6 +2,11 @@ name: Reusable - TypeScript Test (biome + vitest + storybook)
 
 on:
   workflow_call:
+    secrets:
+      CHROMATIC_PROJECT_TOKEN:
+        required: false
+      JSP_VAULT_DELEGATE_TOKEN:
+        required: false
     inputs:
       bun-version:
         required: false
@@ -12,9 +17,14 @@ on:
         type: boolean
         default: false
       run-chromatic:
+        description: 'Run Chromatic visual regression (requires CHROMATIC_PROJECT_TOKEN secret)'
         required: false
         type: boolean
         default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -23,7 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 0   # Required by Chromatic for git history
+          fetch-depth: ${{ inputs.run-chromatic && 0 || 1 }}
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -44,6 +54,16 @@ jobs:
       - name: Build Storybook
         if: inputs.run-storybook == true
         run: bun run build-storybook
+
+      - name: Verify Chromatic token (when enabled)
+        if: ${{ inputs.run-chromatic }}
+        env:
+          CHROMATIC_PROJECT_TOKEN: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
+        run: |
+          if [ -z "$CHROMATIC_PROJECT_TOKEN" ]; then
+            echo "::error::run-chromatic=true but CHROMATIC_PROJECT_TOKEN secret is not provided"
+            exit 1
+          fi
 
       - name: Chromatic visual regression
         if: inputs.run-chromatic == true

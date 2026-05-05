@@ -16,3 +16,9 @@ Organization for the Jaskier ecosystem — atomic polyrepo migration of the Jask
 - Visibility: PRIVATE by default
 - 2FA: WebAuthn (FIDO) MANDATORY for all owners
 - Publishing: OIDC trusted publishing only
+
+## Related resources
+
+- [Contributing guide](./CONTRIBUTING.md) — how to file issues, propose features, open PRs
+- [JaskierWorkspace meta-repo](https://github.com/eps-ai-solutions/JaskierWorkspace) — internal-facing monorepo (private)
+- [Security policy](./SECURITY.md) — vulnerability reporting (planned, not yet authored)

@@ -1,3 +1,12 @@
+# Operator setup notes
+# ====================
+# This reusable workflow uses GitHub Packages OIDC trusted publishing.
+# Before the first call from a consumer repo:
+#   1. Register the consumer repo as a trusted publisher at
+#      github.com/orgs/eps-ai-solutions/packages/npm/<package>/settings
+#      (Trusted Publishers -> Add publisher -> reusable workflow path)
+#   2. Verify id-token: write is set on the CALLER workflow (not just here)
+#   3. Verify the @eps-ai-solutions npm scope is provisioned (B1237-T3)
 name: Reusable - NPM Publish to GHP (OIDC)
 
 on:
@@ -43,5 +52,3 @@ jobs:
 
       - name: Publish to GitHub Packages via OIDC
         run: npm publish --access restricted --provenance
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
