@@ -7,6 +7,13 @@
 #      (Trusted Publishers -> Add publisher -> reusable workflow path)
 #   2. Verify id-token: write is set on the CALLER workflow (not just here)
 #   3. Verify the @eps-ai-solutions npm scope is provisioned (B1237-T3)
+#
+# Notes on npm version (B1237-T18 A3):
+#   - Node 22 hosted runners ship npm 10.9.0, which already supports
+#     `--provenance` via OIDC (added in npm 9.5+). No upgrade required.
+#   - Removed `npm install -g npm@latest` self-upgrade step that was
+#     crashing on Node 22.22.2 toolcache with MODULE_NOT_FOUND
+#     'promise-retry'. The earlier upgrade was based on outdated docs.
 name: Reusable - NPM Publish to GHP (OIDC)
 
 on:
@@ -40,9 +47,6 @@ jobs:
           node-version: ${{ inputs.node-version }}
           registry-url: "https://npm.pkg.github.com"
           scope: "@eps-ai-solutions"
-
-      - name: Install latest npm (OIDC requires npm 11+)
-        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: bun install --frozen-lockfile
