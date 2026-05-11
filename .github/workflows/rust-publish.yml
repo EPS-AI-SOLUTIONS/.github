@@ -73,4 +73,4 @@ jobs:
         env:
           CARGO_REGISTRIES_KELLNR_INDEX: "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
           CARGO_REGISTRIES_KELLNR_TOKEN: ${{ steps.vault.outputs.token }}
-        run: cargo publish --registry kellnr --no-verify
+        run: cargo publish --registry kellnr --no-verify --allow-dirty  # Bug 42: Cargo.lock updated by sparse index fetch
