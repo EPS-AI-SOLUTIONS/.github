@@ -1,12 +1,26 @@
 # Operator setup notes
 # ====================
-# This reusable workflow uses GitHub Packages OIDC trusted publishing.
+# This reusable workflow publishes to the GitHub Packages npm registry
+# (npm.pkg.github.com). GitHub Packages has NO "trusted publishers"
+# feature -- that is an npmjs.org concept. For GHP, publish auth is the
+# built-in ${{ secrets.GITHUB_TOKEN }} with `packages: write` permission
+# (already declared on the `publish` job below); there is NOTHING to
+# register manually. The `id-token: write` permission is kept only so
+# `npm publish --provenance` can mint a provenance attestation when a
+# caller opts into `with.provenance: true` + `with.access: public`.
 # Before the first call from a consumer repo:
-#   1. Register the consumer repo as a trusted publisher at
-#      github.com/orgs/eps-ai-solutions/packages/npm/<package>/settings
-#      (Trusted Publishers -> Add publisher -> reusable workflow path)
-#   2. Verify id-token: write is set on the CALLER workflow (not just here)
-#   3. Verify the @eps-ai-solutions npm scope is provisioned (B1237-T3)
+#   1. Verify the caller workflow grants `permissions: { contents: read,
+#      packages: write }` (and `id-token: write` only if it opts into
+#      provenance) -- inherited perms do not flow into a reusable workflow.
+#   2. Verify the @eps-ai-solutions npm scope exists / the package name
+#      is `@eps-ai-solutions/<pkg>` (GHP requires scope == owning org).
+#   3. Cross-repo private deps: a CONSUMING repo can only `bun install`
+#      another org's PRIVATE GHP package if that repo is granted Actions
+#      read-access to the package (Package settings -> Manage Actions
+#      access) OR the package visibility is set to "internal". GITHUB_TOKEN
+#      alone does not bridge two private repos.
+# See docs/book/src/raporty/B1240-FU-testing-devdep-flip.md (and the
+# B1240 OIDC / trusted-publishing audit) for the full rationale.
 #
 # Notes on npm version (B1237-T18 A3):
 #   - Node 22 hosted runners ship npm 10.9.0, which already supports
