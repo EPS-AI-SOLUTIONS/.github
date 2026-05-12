@@ -88,6 +88,54 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Verify dist parity
+        # Catches the dist-vs-raw drift class fixed in B1240 (core/auth/state/wasm-worker):
+        #   - exports / main / module / types subpath targets that don't exist in dist/
+        #   - relative import/export specifiers in dist/*.js missing a .js/.mjs/.cjs ext
+        #     (Node ESM "Cannot find module" / "Directory import not supported") or
+        #     carrying a literal .ts extension (tsc allowImportingTsExtensions leak)
+        #   - missing .d.ts beside a .js when "declaration": true
+        #   - empty `files` allow-list (npm pack --dry-run)
+        run: |
+          set -euo pipefail
+          node ./scripts/verify-dist-parity.mjs 2>/dev/null || node -e '
+            const { readFileSync, existsSync, readdirSync } = require("node:fs");
+            const { join } = require("node:path");
+            const pkg = JSON.parse(readFileSync("package.json", "utf8"));
+            let errors = 0;
+            const fail = (m) => { console.error("::error::" + m); errors++; };
+            const collect = (v, acc = []) => {
+              if (typeof v === "string") { if (v.startsWith("./")) acc.push(v); }
+              else if (v && typeof v === "object") for (const k of Object.keys(v)) collect(v[k], acc);
+              return acc;
+            };
+            for (const t of collect(pkg.exports || {})) if (!existsSync(t)) fail("exports target missing: " + t);
+            for (const k of ["main", "module", "types"]) if (pkg[k] && !existsSync(pkg[k])) fail(k + " target missing: " + pkg[k]);
+            const declOn = existsSync("tsconfig.json") && /"declaration"\s*:\s*true/.test(readFileSync("tsconfig.json", "utf8"));
+            const RE = /(?:\bfrom\s+|\bimport\s*\(\s*)(["\x27])(\.\.?\/[^"\x27]+?)\1/g;
+            const walk = (dir) => {
+              if (!existsSync(dir)) return;
+              for (const e of readdirSync(dir, { withFileTypes: true })) {
+                const p = join(dir, e.name);
+                if (e.isDirectory()) { walk(p); continue; }
+                if (!e.name.endsWith(".js")) continue;
+                const src = readFileSync(p, "utf8");
+                let m; RE.lastIndex = 0;
+                while ((m = RE.exec(src)) !== null) {
+                  const spec = m[2];
+                  if (/\.ts$/.test(spec)) fail(p + ": relative specifier with .ts extension: " + spec);
+                  else if (!/\.[mc]?js$/.test(spec) && !/\.json$/.test(spec)) fail(p + ": relative specifier missing extension: " + spec);
+                }
+                if (declOn && !existsSync(p.replace(/\.js$/, ".d.ts"))) fail(p + ": missing .d.ts beside .js");
+              }
+            };
+            walk("dist");
+            if (errors) { console.error("verify-dist-parity: " + errors + " error(s)"); process.exit(1); }
+            console.log("verify-dist-parity: dist OK");
+          '
+          PACK_COUNT=$(npm pack --dry-run --json | node -e "let s=\"\";process.stdin.on(\"data\",d=>s+=d).on(\"end\",()=>{const f=(JSON.parse(s)[0].files||[]);if(!f.length){console.error(\"::error::npm pack produced an empty files list\");process.exit(1)}process.stdout.write(String(f.length))})")
+          echo "verify-dist-parity: $PACK_COUNT file(s) in tarball"
+
       - name: Publish to GitHub Packages via OIDC
         run: |
           if [ "${{ inputs.provenance }}" = "true" ]; then
