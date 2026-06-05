@@ -1,9 +1,11 @@
 # Default dependabot.yml template — copy to repos that prefer Dependabot over Renovate.
 # Note: org default is Renovate (see renovate.json at repo root). Use only as fallback.
 version: 2
-updates:
-  - package-ecosystem: github-actions
-    directory: "/"
-    schedule:
-      interval: weekly
-    open-pull-requests-limit: 5
+# github-actions ecosystem disabled — GitHub Actions OFF org-wide (B1318-T8/T9)
+# updates:
+#   - package-ecosystem: github-actions
+#     directory: "/"
+#     schedule:
+#       interval: weekly
+#     open-pull-requests-limit: 5
+updates: []
