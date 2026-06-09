@@ -7,7 +7,9 @@
     "group:allNonMajor",
     "schedule:weekly"
   ],
-  "labels": ["dependencies"],
+  "labels": [
+    "dependencies"
+  ],
   "timezone": "Europe/Warsaw",
   "rangeStrategy": "bump",
   "prConcurrentLimit": 5,
@@ -15,19 +17,38 @@
   "_prHourlyLimit_intent": "per-repo limit, not org-aggregate",
   "lockFileMaintenance": {
     "enabled": true,
-    "schedule": ["before 6am on monday"],
+    "schedule": [
+      "before 6am on monday"
+    ],
     "automerge": true
   },
   "vulnerabilityAlerts": {
-    "labels": ["security", "vulnerability"],
+    "labels": [
+      "security",
+      "vulnerability"
+    ],
     "automerge": false
   },
   "packageRules": [
     {
-      "matchUpdateTypes": ["minor", "patch"],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
       "matchCurrentVersion": "!/^0/",
       "automerge": true,
       "platformAutomerge": true
+    },
+    {
+      "matchPackageNames": [
+        "sqlx"
+      ],
+      "matchUpdateTypes": [
+        "major",
+        "minor"
+      ],
+      "matchCurrentVersion": ">=0.8.0",
+      "enabled": false
     }
   ]
 }
