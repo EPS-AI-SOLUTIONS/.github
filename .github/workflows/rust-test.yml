@@ -39,7 +39,7 @@ jobs:
           toolchain: ${{ inputs.rust-version }}
           components: clippy, rustfmt
 
-      - uses: taiki-e/install-action@920ab1831fbf4fb3ef75c8ead83556c918bb7290  # v2
+      - uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154  # v2
         with:
           tool: cargo-nextest@0.9, cargo-deny@0.17
 
