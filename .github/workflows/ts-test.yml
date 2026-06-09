@@ -95,7 +95,7 @@ jobs:
 
       - name: Chromatic visual regression
         if: inputs.run-chromatic == true
-        uses: chromaui/action@7aca53e7aa87489020a97f633c1e7e82c12e5973  # v17.0.0
+        uses: chromaui/action@05812acac141ce7d317a3f787be88122bca27cf4  # v17.3.0
         with:
           projectToken: ${{ secrets.CHROMATIC_PROJECT_TOKEN }}
           exitZeroOnChanges: true
