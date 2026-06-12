@@ -12,6 +12,12 @@
   ],
   "timezone": "Europe/Warsaw",
   "rangeStrategy": "bump",
+  "ignoreTests": true,
+  "_ignoreTests_intent": "Actions OFF org-wide na stale (docs-portal CLAUDE.md sekcja 13) — zero status checks na PR, bez tej flagi Renovate nigdy nie automerguje; QA = lokalny cargo check + deploy-signal",
+  "automergeSchedule": ["at any time"],
+  "minimumReleaseAge": "3 days",
+  "_minimumReleaseAge_intent": "hardening dla automerge-bez-CI: 3 dni od publikacji wersji odcina typowy wektor skompromitowanego release (wykrywane/yankowane zwykle <48h)",
+  "_automergeSchedule_intent": "schedule:weekly gate'uje tylko TWORZENIE PRow; automerge ma domykac istniejace PRy od reki, nie czekac na okno poniedzialkowe",
   "prConcurrentLimit": 5,
   "prHourlyLimit": 2,
   "_prHourlyLimit_intent": "per-repo limit, not org-aggregate",
@@ -38,6 +44,15 @@
       "matchCurrentVersion": "!/^0/",
       "automerge": true,
       "platformAutomerge": true
+    },
+    {
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "matchCurrentVersion": "/^0/",
+      "automerge": true,
+      "platformAutomerge": true,
+      "_intent": "flota to glownie 0.x crates; patch w 0.x (0.x.y->0.x.z) = non-breaking konwencja, automerge OK; minor 0.x (semver-breaking) zostaje na reczna decyzje"
     },
     {
       "matchPackageNames": [
