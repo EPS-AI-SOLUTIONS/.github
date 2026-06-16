@@ -55,6 +55,23 @@
       "_intent": "flota to glownie 0.x crates; patch w 0.x (0.x.y->0.x.z) = non-breaking konwencja, automerge OK; minor 0.x (semver-breaking) zostaje na reczna decyzje"
     },
     {
+      "matchPackagePatterns": [
+        "^@eps-ai-solutions/",
+        "^@jaskier/"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch"
+      ],
+      "automerge": true,
+      "platformAutomerge": true,
+      "minimumReleaseAge": null,
+      "schedule": [
+        "at any time"
+      ],
+      "_intent": "Wewnetrzne pakiety EPS i Jaskier powinny byc aktualizowane i automergowane natychmiast, bez czekania na hardening 3-dniowy lub okno tygodniowe."
+    },
+    {
       "matchPackageNames": [
         "sqlx"
       ],
@@ -64,6 +81,13 @@
       ],
       "matchCurrentVersion": ">=0.8.0",
       "enabled": false
+    }
+  ],
+  "hostRules": [
+    {
+      "matchHost": "npm.pkg.github.com",
+      "hostType": "npm",
+      "token": "{{ secrets.GH_PAT_READ_PACKAGES }}"
     }
   ]
 }
