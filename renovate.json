@@ -1,5 +1,8 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "registryAliases": {
+    "kellnr-jaskier": "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
+  },
   "extends": [
     "config:recommended",
     ":dependencyDashboard",
@@ -88,6 +91,11 @@
       "matchHost": "npm.pkg.github.com",
       "hostType": "npm",
       "token": "{{ secrets.GH_PAT_READ_PACKAGES }}"
+    },
+    {
+      "matchHost": "kellnr-jaskier.fly.dev",
+      "hostType": "cargo",
+      "token": "H6iO8hFtzW9dV9WZkbygsK1jQ4xmTN46"
     }
   ]
 }
