@@ -1,5 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "allowCustomCrateRegistries": true,
   "registryAliases": {
     "kellnr-jaskier": "sparse+https://kellnr-jaskier.fly.dev/api/v1/crates/"
   },
@@ -95,7 +96,7 @@
     {
       "matchHost": "kellnr-jaskier.fly.dev",
       "hostType": "cargo",
-      "token": "H6iO8hFtzW9dV9WZkbygsK1jQ4xmTN46"
+      "token": "{{ secrets.KELLNR_JASKIER_TOKEN }}"
     }
   ]
 }
