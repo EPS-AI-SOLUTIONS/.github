@@ -41,7 +41,7 @@ jobs:
 
       - uses: taiki-e/install-action@0631aa6515c7d545823c67cfae7ef4fc7f490154  # v2
         with:
-          tool: cargo-nextest@0.9, cargo-deny@0.17
+          tool: cargo-nextest@0.9, cargo-deny@0.19
 
       - name: Format check
         run: cargo fmt --all --check
