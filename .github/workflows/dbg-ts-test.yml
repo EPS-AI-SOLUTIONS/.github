@@ -1,0 +1,16 @@
+name: DBG ts-test
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: ${{ false }}
+    permissions:
+      contents: read
+      packages: read
+    secrets: inherit
+    with:
+      package-path: tests/fixtures/ts-fake-consumer
+      run-storybook: false
+      run-chromatic: false
+    uses: ./.github/workflows/ts-test.yml
