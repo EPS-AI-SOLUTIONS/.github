@@ -88,9 +88,9 @@ jobs:
         run: |
           if [[ "${{ github.ref_type }}" == "tag" ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
-            echo "tags=ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:${VERSION},ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:latest" >> $GITHUB_OUTPUT
+            echo "tags=ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:${VERSION},ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:latest" >> "$GITHUB_OUTPUT"
           else
-            echo "tags=ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+            echo "tags=ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:sha-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
 
       - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
