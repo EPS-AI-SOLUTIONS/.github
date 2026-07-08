@@ -65,7 +65,15 @@ jobs:
         # env block removed (B1237-T9 review C6): sccache GHA backend disabled per B1232-N7
 
       - name: Doc test
-        run: cargo test --doc --all-features
+        # `cargo test --doc` only runs on library targets and hard-errors with
+        # "no library targets found" on binary-only crates (e.g. app templates).
+        # Skip cleanly when the crate/workspace has no lib target.
+        run: |
+          if cargo metadata --no-deps --format-version 1 | jq -e '.packages[].targets[] | select(.kind[] == "lib")' >/dev/null; then
+            cargo test --doc --all-features
+          else
+            echo "::notice::No library target found - skipping doc tests (binary-only crate)."
+          fi
 
       - name: Supply chain (cargo-deny)
         run: cargo deny check
