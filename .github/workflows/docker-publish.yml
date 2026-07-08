@@ -23,6 +23,7 @@
 name: Reusable - Docker Publish to ghcr.io
 
 on:
+  workflow_dispatch:  # TEMP DBG: parse-check only, job guarded below — will be removed
   workflow_call:
     inputs:
       image-name:
@@ -49,6 +50,7 @@ on:
 
 jobs:
   publish:
+    if: github.event_name != 'workflow_dispatch'  # TEMP DBG guard
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     permissions:
