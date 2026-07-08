@@ -1,0 +1,12 @@
+name: DBG rust-test
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: ${{ false }}
+    permissions:
+      contents: read
+    with:
+      crate-path: tests/fixtures/rust-fake-consumer
+    uses: ./.github/workflows/rust-test.yml
