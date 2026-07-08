@@ -47,8 +47,6 @@ jobs:
     uses: ./.github/workflows/rust-test.yml
     with:
       crate-path: tests/fixtures/rust-fake-consumer
-    secrets:
-      JSP_VAULT_DELEGATE_TOKEN: ${{ secrets.JSP_VAULT_DELEGATE_TOKEN }}
 
   # ---------------------------------------------------------------------
   # ts-test smoke - targets tests/fixtures/ts-fake-consumer/ via
