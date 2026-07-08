@@ -44,14 +44,16 @@ jobs:
     defaults:
       run:
         working-directory: ${{ inputs.package-path }}
-    # GitHub Packages auth for `bun install` — the consumer `.npmrc` references
-    # `${GH_PAT_READ_PACKAGES}` (and some `${NODE_AUTH_TOKEN}`); bun reads .npmrc
-    # directly and interpolates these from the process env.
+    # GitHub Packages auth for `bun install` — consumer `.npmrc` files reference
+    # `${NPM_TOKEN}`, `${GH_PAT_READ_PACKAGES}` or `${NODE_AUTH_TOKEN}`; bun reads
+    # .npmrc directly and interpolates these from the process env, so all three
+    # are exported below.
     # NOTE: GITHUB_TOKEN only reads packages linked to the *calling* repo — pulls
     # of packages published from other repos (e.g. @eps-ai-solutions/auth) 401.
     # Callers should use `secrets: inherit` so the org secret GH_PAT_READ_PACKAGES
     # is picked up here; GITHUB_TOKEN remains the fallback for same-repo cases.
     env:
+      NPM_TOKEN: ${{ secrets.GH_PAT_READ_PACKAGES || secrets.GITHUB_TOKEN }}
       GH_PAT_READ_PACKAGES: ${{ secrets.GH_PAT_READ_PACKAGES || secrets.GITHUB_TOKEN }}
       NODE_AUTH_TOKEN: ${{ secrets.GH_PAT_READ_PACKAGES || secrets.GITHUB_TOKEN }}
     steps:
