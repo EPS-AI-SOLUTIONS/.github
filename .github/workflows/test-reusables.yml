@@ -53,6 +53,9 @@ jobs:
   # `package-path`. Chromatic gated off (no org-level project token).
   # ---------------------------------------------------------------------
   ts-test-smoke:
+    permissions:
+      contents: read
+      packages: read  # ts-test.yml job needs GITHUB_TOKEN packages:read for @eps-ai-solutions/* pulls
     uses: ./.github/workflows/ts-test.yml
     secrets: inherit
     with:
@@ -66,6 +69,11 @@ jobs:
   # without a tag to avoid clobbering the `:sha-XXXXXXX` cache.
   # ---------------------------------------------------------------------
   docker-publish-smoke:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
     if: false  # TODO B1237-FU: enable once we have a smoke Dockerfile + can pin the cleanup retention. Today this would push test-reusable-smoke:sha-* tags into ghcr.io with no GC.
     uses: ./.github/workflows/docker-publish.yml
     with:
@@ -80,6 +88,10 @@ jobs:
   # publish.yml against a real fake package on a -smoke version branch).
   # ---------------------------------------------------------------------
   npm-publish-smoke:
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
     if: false
     uses: ./.github/workflows/npm-publish.yml
     with:
