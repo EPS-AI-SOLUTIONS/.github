@@ -1,0 +1,67 @@
+name: DBG inner i1
+on: workflow_dispatch
+
+jobs:
+  publish:
+    if: ${{ false }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Validate semver tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          # Accepts both semver pre-release (v0.1.0-rc1) and PEP 440 (v0.0.1a1, v1.0.0.dev0).
+          # Suffix (if present) starts with optional dot/dash + a letter, so v1.0.0.0
+          # (pure 4-segment numeric) is rejected. See operator notes at top of file.
+          echo "${{ github.ref_name }}" | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+([.-]?[a-zA-Z][a-zA-Z0-9.-]*)?$' \
+            || (echo "::error::Tag must match semver (v<major>.<minor>.<patch>[-pre]) or PEP 440 (v<M>.<m>.<p>{a|b|rc|.dev}<N>)" && exit 1)
+
+      # TODO(B1237-T8): replace QEMU emulation with a build matrix using native
+      # ubuntu-24.04-arm runners (5-10x faster than QEMU). The restructure
+      # requires splitting build per-arch + merging manifests with
+      # docker/build-push-action's native manifest support; deferred until
+      # we're ready for the workflow refactor.
+      # See: https://github.blog/changelog/2025-01-16-linux-arm64-hosted-runners-now-available-for-free-in-public-repositories/
+      - uses: docker/setup-qemu-action@ce360397dd3f832beb865e1373c09c0e9f86d70a  # v4.0.0
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5  # v4.1.0
+
+      - uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee  # v4.2.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compute tags (release tag or SHA)
+        id: tags
+        run: |
+          if [[ "${{ github.ref_type }}" == "tag" ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+            echo "tags=ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:${VERSION},ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:latest" >> $GITHUB_OUTPUT
+          else
+            echo "tags=ghcr.io/eps-ai-solutions/${{ inputs.image-name }}:sha-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+          fi
+
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf  # v7.2.0
+        with:
+          context: ${{ inputs.context }}
+          platforms: ${{ inputs.platforms }}
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+          # build-args: caller-supplied lines first, then KELLNR_TOKEN appended.
+          # When the secret isn't set, KELLNR_TOKEN= (empty) is passed - harmless
+          # for consumers without private deps. Consumers WITH private deps must
+          # declare the secret in their caller workflow's `secrets:` block.
+          build-args: |
+            ${{ inputs.build-args }}
+            KELLNR_TOKEN=${{ secrets.KELLNR_TOKEN }}
+          provenance: true
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
