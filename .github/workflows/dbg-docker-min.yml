@@ -1,8 +1,0 @@
-name: DBG docker-min
-on: workflow_dispatch
-jobs:
-  probe:
-    if: ${{ false }}
-    uses: ./.github/workflows/docker-publish.yml
-    with:
-      image-name: test-reusable-smoke
