@@ -22,15 +22,18 @@
   "minimumReleaseAge": "3 days",
   "_minimumReleaseAge_intent": "hardening dla automerge-bez-CI: 3 dni od publikacji wersji odcina typowy wektor skompromitowanego release (wykrywane/yankowane zwykle <48h)",
   "_automergeSchedule_intent": "schedule:weekly gate'uje tylko TWORZENIE PRow; automerge ma domykac istniejace PRy od reki, nie czekac na okno poniedzialkowe",
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 3,
   "prHourlyLimit": 2,
   "_prHourlyLimit_intent": "per-repo limit, not org-aggregate",
+  "rebaseWhen": "conflicted",
+  "_rebaseWhen_intent": "ciecie kosztow 2026-07-08: domyslne auto-rebase po kazdym merge'u re-pushowalo WSZYSTKIE otwarte PRy bota -> kaskada buildow Vercel (Build CPU Minutes = 28 USD/msc) i minut Actions; rebase tylko przy konflikcie wystarcza, bo automerge bez wymogu up-to-date branch",
   "lockFileMaintenance": {
     "enabled": true,
     "schedule": [
-      "before 6am on monday"
+      "before 6am on the first day of the month"
     ],
-    "automerge": true
+    "automerge": true,
+    "_intent": "ciecie kosztow 2026-07-08: cotygodniowy lockFileMaintenance dotykal lockfile kazdego repo (= build Vercel per repo per tydzien); miesiecznie wystarcza — realne bumpy i tak wchodza przez group:allNonMajor"
   },
   "vulnerabilityAlerts": {
     "labels": [
