@@ -1,0 +1,18 @@
+name: DBG docker-publish
+on: workflow_dispatch
+permissions:
+  contents: read
+jobs:
+  probe:
+    if: ${{ false }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    secrets:
+      KELLNR_TOKEN: ${{ secrets.KELLNR_TOKEN }}
+    with:
+      image-name: test-reusable-smoke
+      build-args: ""
+    uses: ./.github/workflows/docker-publish.yml
