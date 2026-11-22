@@ -1,0 +1,52 @@
+name: ci-templates-smoke
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-templates-smoke-${{ gitea.ref }}
+  cancel-in-progress: ${{ gitea.event_name == 'pull_request' }}
+
+jobs:
+  reusable-node-smoke:
+    uses: ./.gitea/workflows/_reusable-node-verify.yml
+    with:
+      runs-on-label: katana-ci
+      install-node-deps: 'false'
+
+  verify-quick-all:
+    name: verify-quick-all
+    if: ${{ always() }}
+    needs: [reusable-node-smoke]
+    runs-on: katana-ci
+    timeout-minutes: 5
+    steps:
+      - name: Verify reusable smoke result
+        shell: bash
+        env:
+          RES: ${{ needs.reusable-node-smoke.result }}
+        run: |
+          set -euo pipefail
+          test "$RES" = "success"
+
+  ci-gate:
+    name: ci-gate
+    if: ${{ always() }}
+    needs: [reusable-node-smoke, verify-quick-all]
+    runs-on: [linux-fast]
+    timeout-minutes: 5
+    steps:
+      - name: Evaluate upstream CI job gate
+        shell: bash
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          node -e 'const n=JSON.parse(process.env.NEEDS_JSON||"{}");const e=Object.entries(n);if(!e.length)process.exit(1);let ok=0;for(const [k,v] of e){const r=String(v?.result||"unknown");console.log(k+"="+r);if(r==="success"){ok++;continue;}if(r==="skipped")continue;process.exit(1);}if(!ok)process.exit(1);'

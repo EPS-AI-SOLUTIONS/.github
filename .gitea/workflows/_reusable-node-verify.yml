@@ -1,0 +1,109 @@
+name: Reusable Node Verify
+
+on:
+  workflow_call:
+    inputs:
+      runs-on-label:
+        description: 'Katana Linux runner label'
+        required: false
+        type: string
+        default: katana-ci
+      test-command:
+        description: 'Optional custom verification command'
+        required: false
+        type: string
+        default: ''
+      install-node-deps:
+        description: 'Install Node dependencies when package.json is present'
+        required: false
+        type: string
+        default: 'true'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reusable-node-verify-${{ gitea.run_id }}-${{ gitea.run_attempt || '1' }}
+  cancel-in-progress: false
+
+jobs:
+  node-verify:
+    if: ${{ gitea.event_name != 'pull_request' || gitea.event.pull_request.head.repo.full_name == gitea.repository }}
+    name: node-verify
+    runs-on: ${{ inputs.runs-on-label }}
+    timeout-minutes: 15
+    env:
+      PNPM_HOME: /var/cache/ci/pnpm
+      NODE_COMPILE_CACHE: /var/cache/ci/node-compile-cache
+      GITEA_ACTIONS: 'true'
+      JASKIER_GITEA_CI: 'true'
+    steps:
+      - name: Checkout exact revision
+        shell: bash
+        env:
+          CI_HEAD_SHA: ${{ gitea.event_name == 'pull_request' && gitea.event.pull_request.head.sha || gitea.sha }}
+          CI_SERVER_URL: ${{ gitea.server_url }}
+          CI_REPOSITORY: ${{ gitea.repository }}
+          CI_GITEA_TOKEN: ${{ gitea.token }}
+        run: |
+          set -euo pipefail
+          REPO_URL="${CI_SERVER_URL%/}/${CI_REPOSITORY}.git"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="safe.directory"
+          export GIT_CONFIG_VALUE_0="*"
+          if [ -n "${CI_GITEA_TOKEN:-}" ] && [ -n "${CI_SERVER_URL:-}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "$CI_GITEA_TOKEN" | base64 | tr -d '\r\n')"
+            echo "::add-mask::${AUTH_B64}"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_1="http.${CI_SERVER_URL%/}/.extraheader"
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic ${AUTH_B64}"
+          fi
+          if [ ! -d .git ]; then
+            git init --quiet .
+          fi
+          git remote set-url origin "$REPO_URL" 2>/dev/null || git remote add origin "$REPO_URL"
+          if ! git cat-file -e "${CI_HEAD_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 --quiet origin "$CI_HEAD_SHA"
+          fi
+          git checkout --detach --force "$CI_HEAD_SHA"
+
+      - name: Install Node dependencies if configured
+        shell: bash
+        env:
+          INSTALL_DEPS: ${{ inputs.install-node-deps }}
+        run: |
+          set -euo pipefail
+          node --version
+          if [ ! -f package.json ] || [ "$INSTALL_DEPS" != "true" ]; then
+            echo "node_verify_deps=skipped"
+            exit 0
+          fi
+          if [ -f pnpm-lock.yaml ] && command -v pnpm >/dev/null 2>&1; then
+            pnpm install --frozen-lockfile --prefer-offline
+          elif [ -f package-lock.json ]; then
+            npm ci --prefer-offline
+          elif [ -f npm-shrinkwrap.json ]; then
+            npm ci --prefer-offline
+          else
+            npm install --no-audit --no-fund
+          fi
+
+      - name: Run Node verification
+        shell: bash
+        env:
+          CUSTOM_CMD: ${{ inputs.test-command }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CUSTOM_CMD" ]; then
+            bash -euo pipefail -c "$CUSTOM_CMD"
+            exit 0
+          fi
+          if [ -f package.json ]; then
+            has_test="$(node -e 'const fs=require("node:fs");const p=JSON.parse(fs.readFileSync("package.json","utf8"));const t=p?.scripts?.test||"";process.stdout.write(t && !t.includes("no test specified") ? "yes" : "no");')"
+            if [ "$has_test" = "yes" ]; then
+              npm test
+              exit 0
+            fi
+          fi
+          git status --short
+          echo "reusable_node_verify_smoke=PASS"

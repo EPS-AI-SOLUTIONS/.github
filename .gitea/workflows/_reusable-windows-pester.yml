@@ -1,0 +1,98 @@
+name: Reusable Windows Pester Verify
+
+on:
+  workflow_call:
+    inputs:
+      runs-on-label:
+        description: 'Allowed Katana Windows runner label'
+        required: false
+        type: string
+        default: katana-win
+      pester-path:
+        description: 'Relative path to Pester tests'
+        required: false
+        type: string
+        default: tests
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reusable-windows-pester-${{ gitea.run_id }}-${{ gitea.run_attempt || '1' }}
+  cancel-in-progress: false
+
+jobs:
+  windows-pester:
+    if: ${{ gitea.event_name != 'pull_request' || gitea.event.pull_request.head.repo.full_name == gitea.repository }}
+    name: windows-pester
+    runs-on: ${{ inputs.runs-on-label }}
+    timeout-minutes: 20
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - name: Checkout exact revision
+        shell: pwsh
+        env:
+          CI_HEAD_SHA: ${{ gitea.event_name == 'pull_request' && gitea.event.pull_request.head.sha || gitea.sha }}
+          CI_SERVER_URL: ${{ gitea.server_url }}
+          CI_REPOSITORY: ${{ gitea.repository }}
+          CI_GITEA_TOKEN: ${{ gitea.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $prevCount = $env:GIT_CONFIG_COUNT
+          $prevKey0 = $env:GIT_CONFIG_KEY_0
+          $prevVal0 = $env:GIT_CONFIG_VALUE_0
+          $prevKey1 = $env:GIT_CONFIG_KEY_1
+          $prevVal1 = $env:GIT_CONFIG_VALUE_1
+          try {
+            $repoUrl = "$($env:CI_SERVER_URL.TrimEnd('/'))/$($env:CI_REPOSITORY)"
+            $env:GIT_CONFIG_COUNT = '1'
+            $env:GIT_CONFIG_KEY_0 = 'safe.directory'
+            $env:GIT_CONFIG_VALUE_0 = '*'
+            if (-not [string]::IsNullOrWhiteSpace($env:CI_GITEA_TOKEN) -and -not [string]::IsNullOrWhiteSpace($env:CI_SERVER_URL)) {
+              $authB64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes(('x-access-token:' + $env:CI_GITEA_TOKEN)))
+              Write-Output "::add-mask::$authB64"
+              $serverBase = $env:CI_SERVER_URL.TrimEnd('/')
+              $env:GIT_CONFIG_COUNT = '2'
+              $env:GIT_CONFIG_KEY_1 = "http.$serverBase/.extraheader"
+              $env:GIT_CONFIG_VALUE_1 = "AUTHORIZATION: basic $authB64"
+            }
+            if (-not (Test-Path -LiteralPath '.git')) {
+              & git init --quiet .
+              if ($LASTEXITCODE -ne 0) { throw 'windows_ci_git_init_failed' }
+            }
+            & git remote set-url origin $repoUrl *> $null
+            if ($LASTEXITCODE -ne 0) {
+              & git remote add origin $repoUrl
+              if ($LASTEXITCODE -ne 0) { throw 'windows_ci_git_remote_failed' }
+            }
+            & git cat-file -e "$($env:CI_HEAD_SHA)^{commit}" *> $null
+            if ($LASTEXITCODE -ne 0) {
+              & git fetch --no-tags --depth=1 --quiet origin $env:CI_HEAD_SHA
+              if ($LASTEXITCODE -ne 0) { throw 'windows_ci_checkout_fetch_failed' }
+            }
+            & git checkout --detach --force $env:CI_HEAD_SHA
+            if ($LASTEXITCODE -ne 0) { throw 'windows_ci_checkout_detach_failed' }
+          } finally {
+            $env:GIT_CONFIG_COUNT = $prevCount
+            $env:GIT_CONFIG_KEY_0 = $prevKey0
+            $env:GIT_CONFIG_VALUE_0 = $prevVal0
+            $env:GIT_CONFIG_KEY_1 = $prevKey1
+            $env:GIT_CONFIG_VALUE_1 = $prevVal1
+          }
+
+      - name: Run Pester verification
+        shell: pwsh
+        env:
+          PESTER_TARGET: ${{ inputs.pester-path }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+          Import-Module Pester -MinimumVersion 5.0 -ErrorAction Stop
+          if (Test-Path -LiteralPath $env:PESTER_TARGET) {
+            $res = Invoke-Pester -Path $env:PESTER_TARGET -PassThru
+            if ($null -eq $res -or [int]$res.FailedCount -ne 0) { throw 'windows_pester_failed' }
+          } else {
+            Write-Output 'reusable_windows_pester_smoke=PASS'
+          }
