@@ -1,0 +1,88 @@
+name: Reusable Python UV Verify
+
+on:
+  workflow_call:
+    inputs:
+      runs-on-label:
+        description: 'Katana Linux runner label'
+        required: false
+        type: string
+        default: katana-ci
+      working-directory:
+        description: 'Working directory containing pyproject.toml'
+        required: false
+        type: string
+        default: '.'
+      test-command:
+        description: 'Optional custom Python verification command'
+        required: false
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reusable-python-uv-${{ gitea.run_id }}-${{ gitea.run_attempt || '1' }}
+  cancel-in-progress: false
+
+jobs:
+  python-uv:
+    if: ${{ gitea.event_name != 'pull_request' || gitea.event.pull_request.head.repo.full_name == gitea.repository }}
+    name: python-uv
+    runs-on: ${{ inputs.runs-on-label }}
+    timeout-minutes: 15
+    env:
+      UV_CACHE_DIR: /var/cache/ci/uv
+      GITEA_ACTIONS: 'true'
+      JASKIER_GITEA_CI: 'true'
+    steps:
+      - name: Checkout exact revision
+        shell: bash
+        env:
+          CI_HEAD_SHA: ${{ gitea.event_name == 'pull_request' && gitea.event.pull_request.head.sha || gitea.sha }}
+          CI_SERVER_URL: ${{ gitea.server_url }}
+          CI_REPOSITORY: ${{ gitea.repository }}
+          CI_GITEA_TOKEN: ${{ gitea.token }}
+        run: |
+          set -euo pipefail
+          REPO_URL="${CI_SERVER_URL%/}/${CI_REPOSITORY}.git"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="safe.directory"
+          export GIT_CONFIG_VALUE_0="*"
+          if [ -n "${CI_GITEA_TOKEN:-}" ] && [ -n "${CI_SERVER_URL:-}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "$CI_GITEA_TOKEN" | base64 | tr -d '\r\n')"
+            echo "::add-mask::${AUTH_B64}"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_1="http.${CI_SERVER_URL%/}/.extraheader"
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic ${AUTH_B64}"
+          fi
+          if [ ! -d .git ]; then
+            git init --quiet .
+          fi
+          git remote set-url origin "$REPO_URL" 2>/dev/null || git remote add origin "$REPO_URL"
+          if ! git cat-file -e "${CI_HEAD_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 --quiet origin "$CI_HEAD_SHA"
+          fi
+          git checkout --detach --force "$CI_HEAD_SHA"
+
+      - name: Run Python verification with uv cache
+        shell: bash
+        working-directory: ${{ inputs.working-directory }}
+        env:
+          CUSTOM_CMD: ${{ inputs.test-command }}
+        run: |
+          set -euo pipefail
+          if [ -n "$CUSTOM_CMD" ]; then
+            bash -euo pipefail -c "$CUSTOM_CMD"
+            exit 0
+          fi
+          if command -v uv >/dev/null 2>&1 && [ -f pyproject.toml ]; then
+            if [ -f uv.lock ]; then
+              uv sync --locked --dev || uv sync --frozen
+            fi
+            uv run pytest -v --tb=short
+            exit 0
+          fi
+          python3 --version
+          echo "reusable_python_uv_smoke=PASS"

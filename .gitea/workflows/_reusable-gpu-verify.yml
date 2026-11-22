@@ -1,0 +1,98 @@
+name: Reusable GPU Verify
+
+on:
+  workflow_call:
+    inputs:
+      runs-on-label:
+        description: 'Allowed Katana GPU runner label'
+        required: false
+        type: string
+        default: katana-gpu
+      mode:
+        description: 'GPU verification mode'
+        required: false
+        type: string
+        default: probe
+      verify-command:
+        description: 'Optional custom GPU command'
+        required: false
+        type: string
+        default: ''
+      min-free-vram-mib:
+        description: 'Minimum free VRAM in MiB (0 disables check)'
+        required: false
+        type: string
+        default: '0'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: reusable-gpu-verify-${{ inputs.mode }}-${{ gitea.run_id }}-${{ gitea.run_attempt || '1' }}
+  cancel-in-progress: false
+
+jobs:
+  gpu-verify:
+    if: ${{ gitea.event_name != 'pull_request' || gitea.event.pull_request.head.repo.full_name == gitea.repository }}
+    name: gpu-verify-${{ inputs.mode }}
+    runs-on: ${{ inputs.runs-on-label }}
+    timeout-minutes: 30
+    steps:
+      - name: Checkout exact revision
+        shell: bash
+        env:
+          CI_HEAD_SHA: ${{ gitea.event_name == 'pull_request' && gitea.event.pull_request.head.sha || gitea.sha }}
+          CI_SERVER_URL: ${{ gitea.server_url }}
+          CI_REPOSITORY: ${{ gitea.repository }}
+          CI_GITEA_TOKEN: ${{ gitea.token }}
+        run: |
+          set -euo pipefail
+          REPO_URL="${CI_SERVER_URL%/}/${CI_REPOSITORY}.git"
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="safe.directory"
+          export GIT_CONFIG_VALUE_0="*"
+          if [ -n "${CI_GITEA_TOKEN:-}" ] && [ -n "${CI_SERVER_URL:-}" ]; then
+            AUTH_B64="$(printf 'x-access-token:%s' "$CI_GITEA_TOKEN" | base64 | tr -d '\r\n')"
+            echo "::add-mask::${AUTH_B64}"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_1="http.${CI_SERVER_URL%/}/.extraheader"
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic ${AUTH_B64}"
+          fi
+          if [ ! -d .git ]; then
+            git init --quiet .
+          fi
+          git remote set-url origin "$REPO_URL" 2>/dev/null || git remote add origin "$REPO_URL"
+          if ! git cat-file -e "${CI_HEAD_SHA}^{commit}" 2>/dev/null; then
+            git fetch --no-tags --depth=1 --quiet origin "$CI_HEAD_SHA"
+          fi
+          git checkout --detach --force "$CI_HEAD_SHA"
+
+      - name: Probe GPU and execute workload
+        shell: bash
+        env:
+          INPUT_MODE: ${{ inputs.mode }}
+          INPUT_VERIFY_COMMAND: ${{ inputs.verify-command }}
+          MIN_FREE_VRAM_MIB: ${{ inputs.min-free-vram-mib }}
+        run: |
+          set -euo pipefail
+          command -v nvidia-smi >/dev/null 2>&1 || { echo 'gpu_verify_nvidia_smi_missing'; exit 1; }
+          GPU_CSV="$(nvidia-smi --query-gpu=name,driver_version,memory.total,memory.free --format=csv,noheader)"
+          echo "GPU_SUMMARY=${GPU_CSV}"
+          if [ "${MIN_FREE_VRAM_MIB:-0}" -gt 0 ] 2>/dev/null; then
+            FREE_MIB="$(nvidia-smi --query-gpu=memory.free --format=csv,noheader,nounits | head -n1 | tr -d '[:space:]')"
+            [ "$FREE_MIB" -ge "$MIN_FREE_VRAM_MIB" ] || { echo "gpu_verify_insufficient_vram=${FREE_MIB}"; exit 1; }
+          fi
+          if [ -n "$INPUT_VERIFY_COMMAND" ]; then
+            bash -euo pipefail -c "$INPUT_VERIFY_COMMAND"
+          else
+            echo 'gpu_verify_probe_only=PASS'
+          fi
+
+      - name: Upload GPU verification artifacts
+        if: ${{ always() }}
+        uses: https://github.com/christopherHX/gitea-upload-artifact@v4
+        with:
+          name: gpu-verify-${{ inputs.mode }}-${{ gitea.run_id }}-${{ gitea.run_attempt || '1' }}
+          path: .artifacts/
+          if-no-files-found: ignore
+          retention-days: 7
